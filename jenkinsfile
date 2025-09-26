@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(
+            name: 'DESTROY',
+            defaultValue: false,
+            description: 'Check this to destroy infrastructure instead of applying'
+        )
+    }
+
+    environment {
+        AWS_ACCESS_KEY_ID = 'AKIARZGCVZFV7PHL2IX3'
+        AWS_SECRET_ACCESS_KEY = '................................'
+        AWS_DEFAULT_REGION = 'us-east-1'
+        TF_WORKING_DIR = 'terraform'
+    }
+
+    stages {
+        stage('Checkout Repository') {
+            steps {
+                echo 'Cloning Terraform repository...'
+                git branch: 'main', url: 'https://github.com/BagadeSaurav/terraform.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir("${TF_WORKING_DIR}") {
+                    echo 'Initializing Terraform...'
+                    sh 'terraform init'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { return params.DESTROY == false }
+            }
+            steps {
+                dir("${TF_WORKING_DIR}") {
+                    echo 'Generating Terraform plan...'
+                    sh 'terraform plan -out=tfplan'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { return params.DESTROY == false }
+            }
+            steps {
+                dir("${TF_WORKING_DIR}") {
+                    echo 'Applying Terraform plan...'
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { return params.DESTROY == true }
+            }
+            steps {
+                dir("${TF_WORKING_DIR}") {
+                    echo 'Destroying Terraform-managed infrastructure...'
+                    sh 'terraform destroy -auto-approve'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Terraform pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Terraform pipeline failed.'
+        }
+    }
+}
